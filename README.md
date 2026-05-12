@@ -42,11 +42,7 @@
 
 ## 快速开始
 
-```bash
-pip install research-helper
-```
-
-或从源码安装：
+从源码安装：
 
 ```bash
 git clone https://github.com/<your-username>/research-helper
