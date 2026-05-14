@@ -35,7 +35,7 @@ def _embed_openai_compat(texts: list[str], provider: str) -> list[list[float]]:
     )
     results: list[list[float]] = []
     total_tokens = 0
-    for batch in _batched(texts, 25):
+    for batch in _batched(texts, 10 if provider == "qwen" else 25):
         resp = client.embeddings.create(model=model, input=batch)
         results.extend(d.embedding for d in resp.data)
         if resp.usage:

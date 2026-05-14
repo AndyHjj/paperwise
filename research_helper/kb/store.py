@@ -79,9 +79,11 @@ def query(text: str, top_k: int = 5) -> list[KBEntry]:
     if col.count() == 0:
         return []
     vec = embedder.embed_one(text[:2000])
+    # Fetch many more raw chunks than needed so deduplication can yield top_k distinct papers
+    fetch = min(top_k * 20, col.count())
     results = col.query(
         query_embeddings=[vec],
-        n_results=min(top_k, col.count()),
+        n_results=fetch,
         include=["documents", "metadatas", "distances"],
     )
     entries = []

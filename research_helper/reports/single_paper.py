@@ -16,7 +16,7 @@ SYSTEM_PROMPT = """\
 - 遇到方法细节时，解释清楚其设计动机，不只是罗列
 - 知识库中有相关论文时，做有实质内容的横向对比，指出异同
 - 不引用知识库和论文原文之外未出现的论文
-- 所有数学公式必须使用 Markdown 格式：行内公式用 $...$，独立公式用 $$...$$，不得使用 \( \) 或 \[ \]\
+- 所有数学公式必须使用 Markdown 格式：行内公式用 $...$，独立公式用 $$...$$，不得使用 \\( \\) 或 \\[ \\]\
 """
 
 REPORT_TEMPLATE = """\
@@ -145,14 +145,21 @@ KB_SECTION_TEMPLATE = """\
 """
 
 
-def _build_kb_section(query_text: str) -> str:
+def _build_kb_section(query_text: str, current_arxiv_id: str = "") -> str:
     try:
         from research_helper.kb import store
-        entries = store.query(query_text, top_k=5)
+        entries = store.query(query_text, top_k=6)
     except Exception:
         return ""
+    entries = [e for e in entries if e.arxiv_id != current_arxiv_id][:5]
     if not entries:
+        import sys
+        print("[KB] 知识库为空或无相关论文", file=sys.stderr)
         return ""
+    import sys
+    print(f"[KB] 检索到 {len(entries)} 篇相关论文：", file=sys.stderr)
+    for e in entries:
+        print(f"  - {e.title} ({e.arxiv_id})", file=sys.stderr)
     lines = []
     for e in entries:
         lines.append(
@@ -206,7 +213,7 @@ def generate(
     else:
         content = _prepare_content(meta.title, full_text)
         query_text = f"{meta.title}\n{meta.abstract}"
-        kb_section = _build_kb_section(query_text)
+        kb_section = _build_kb_section(query_text, current_arxiv_id=meta.arxiv_id)
 
         answers = []
         for prompt_tpl in SECTION_PROMPTS:
