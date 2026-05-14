@@ -1,6 +1,8 @@
 """ChromaDB-backed knowledge base store."""
 from __future__ import annotations
+import math
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 import chromadb
@@ -74,7 +76,19 @@ def add(
     col.add(documents=docs, embeddings=vectors, ids=ids, metadatas=metas)
 
 
-def query(text: str, top_k: int = 5) -> list[KBEntry]:
+def _recency_score(published: str) -> float:
+    """Exponential decay from today; half-life ≈ 2 years. Returns (0, 1]."""
+    if not published:
+        return 0.5
+    try:
+        y, m, d = int(published[:4]), int(published[5:7]) or 1, int(published[8:10]) or 1
+        days_ago = max(0, (date.today() - date(y, m, d)).days)
+        return math.exp(-days_ago / 730)
+    except Exception:
+        return 0.5
+
+
+def query(text: str, top_k: int = 5, recency_weight: float = 0.3) -> list[KBEntry]:
     col = _get_collection()
     if col.count() == 0:
         return []
@@ -86,28 +100,40 @@ def query(text: str, top_k: int = 5) -> list[KBEntry]:
         n_results=fetch,
         include=["documents", "metadatas", "distances"],
     )
-    entries = []
-    seen_papers: set[str] = set()
+
+    # Deduplicate: keep best-similarity chunk per paper
+    best: dict[str, tuple[str, dict, float]] = {}
     for doc, meta, dist in zip(
         results["documents"][0],
         results["metadatas"][0],
         results["distances"][0],
     ):
-        arxiv_id = meta["arxiv_id"]
-        # Deduplicate: keep only the most relevant chunk per paper
-        if arxiv_id in seen_papers:
-            continue
-        seen_papers.add(arxiv_id)
-        entries.append(KBEntry(
-            doc_id=f'{arxiv_id}::{meta["source"]}',
+        aid = meta["arxiv_id"]
+        if aid not in best or dist < best[aid][2]:
+            best[aid] = (doc, meta, dist)
+
+    # Re-rank by combined score: relevance + recency
+    w = max(0.0, min(1.0, recency_weight))
+    scored = []
+    for aid, (doc, meta, dist) in best.items():
+        sim = 1.0 - dist
+        recency = _recency_score(meta.get("published", ""))
+        combined = sim * (1 - w) + recency * w
+        scored.append((combined, doc, meta, dist))
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    return [
+        KBEntry(
+            doc_id=f'{meta["arxiv_id"]}::{meta["source"]}',
             text=doc,
             title=meta["title"],
-            arxiv_id=arxiv_id,
-            published=meta["published"],
+            arxiv_id=meta["arxiv_id"],
+            published=meta.get("published", ""),
             source=meta["source"],
             distance=dist,
-        ))
-    return entries
+        )
+        for _, doc, meta, dist in scored[:top_k]
+    ]
 
 
 def list_papers() -> list[dict]:
