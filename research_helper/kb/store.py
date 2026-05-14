@@ -76,12 +76,20 @@ def add(
     col.add(documents=docs, embeddings=vectors, ids=ids, metadatas=metas)
 
 
-def _recency_score(published: str) -> float:
+def _recency_score(published: str, arxiv_id: str = "") -> float:
     """Exponential decay from today; half-life ≈ 2 years. Returns (0, 1]."""
-    if not published:
-        return 0.5
     try:
-        y, m, d = int(published[:4]), int(published[5:7]) or 1, int(published[8:10]) or 1
+        if published:
+            y, m, d = int(published[:4]), int(published[5:7]) or 1, int(published[8:10]) or 1
+        else:
+            # Infer year/month from arxiv ID format YYMM.xxxxx
+            import re
+            m_id = re.match(r"(\d{2})(\d{2})\.\d+", arxiv_id or "")
+            if not m_id:
+                return 0.5
+            yy, mm = int(m_id.group(1)), int(m_id.group(2))
+            y = 2000 + yy
+            m, d = mm, 1
         days_ago = max(0, (date.today() - date(y, m, d)).days)
         return math.exp(-days_ago / 730)
     except Exception:
@@ -117,7 +125,7 @@ def query(text: str, top_k: int = 5, recency_weight: float = 0.3) -> list[KBEntr
     scored = []
     for aid, (doc, meta, dist) in best.items():
         sim = 1.0 - dist
-        recency = _recency_score(meta.get("published", ""))
+        recency = _recency_score(meta.get("published", ""), meta.get("arxiv_id", ""))
         combined = sim * (1 - w) + recency * w
         scored.append((combined, doc, meta, dist))
     scored.sort(key=lambda x: x[0], reverse=True)
