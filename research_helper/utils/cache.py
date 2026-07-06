@@ -10,13 +10,16 @@ def _cache_path(paper_dir: Path, key: str) -> Path:
 def load_cache(paper_dir: Path, key: str):
     p = _cache_path(paper_dir, key)
     if p.exists():
-        return json.loads(p.read_text())
+        return json.loads(p.read_text(encoding="utf-8"))
     return None
 
 
 def save_cache(paper_dir: Path, key: str, data) -> None:
     paper_dir.mkdir(parents=True, exist_ok=True)
-    _cache_path(paper_dir, key).write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    _cache_path(paper_dir, key).write_text(
+        json.dumps(data, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def file_hash(path: Path) -> str:

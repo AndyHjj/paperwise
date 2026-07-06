@@ -1,10 +1,12 @@
-"""
+﻿"""
 research-helper CLI
 
 Commands:
   rh read   --pdf paper.pdf           # mode 2: local PDF
   rh read   --arxiv 2310.01234        # mode 2: arxiv ID (downloads PDF)
   rh survey --query "RAG" --max 20   # mode 1: domain survey
+  rh translate --arxiv 2401.12345     # translate to Chinese Markdown
+  rh translate --arxiv 2401.12345 --bilingual  # bilingual side-by-side PDF
   rh kb list                          # list KB papers
   rh kb search "contrastive learning" # semantic search in KB
   rh kb stats                         # KB statistics
@@ -39,6 +41,15 @@ def _ensure_api_key() -> None:
         sys.exit(1)
     if config.LLM_PROVIDER == "openai" and not config.OPENAI_API_KEY:
         console.print("[red]Error:[/] OPENAI_API_KEY is not set. Add it to .env or environment.")
+        sys.exit(1)
+    if config.LLM_PROVIDER == "deepseek" and not config.DEEPSEEK_API_KEY:
+        console.print("[red]Error:[/] DEEPSEEK_API_KEY is not set. Add it to .env or environment.")
+        sys.exit(1)
+    if config.LLM_PROVIDER == "qwen" and not config.QWEN_API_KEY:
+        console.print("[red]Error:[/] QWEN_API_KEY is not set. Add it to .env or environment.")
+        sys.exit(1)
+    if config.LLM_PROVIDER == "mimo" and not config.MIMO_API_KEY:
+        console.print("[red]Error:[/] MIMO_API_KEY is not set. Add it to .env or environment.")
         sys.exit(1)
 
 
@@ -141,6 +152,132 @@ def read(pdf_path: Path | None, arxiv_id: str | None, force: bool, no_kb: bool):
     console.print(
         f"[dim]本次费用：[/][yellow]${s['cost_usd']:.4f}[/]"
         f"[dim]  (in {s['input_tokens']:,} / out {s['output_tokens']:,} / embed {s['embed_tokens']:,} tokens,"
+        f" {s['calls']} calls)[/]"
+    )
+
+
+# ---------------------------------------------------------------------------
+# rh translate
+# ---------------------------------------------------------------------------
+
+@main.command()
+@click.option("--pdf", "pdf_path", type=click.Path(exists=True, path_type=Path), default=None,
+              help="Path to a local PDF file.")
+@click.option("--arxiv", "arxiv_id", default=None,
+              help="Arxiv paper ID (e.g. 2310.01234) or full URL.")
+@click.option("--force", is_flag=True, default=False,
+              help="Regenerate translation even if it already exists.")
+@click.option("--jobs", default=1, show_default=True,
+              help="Number of sections to translate concurrently (Markdown only).")
+@click.option("--max-section-chars", default=10_000, show_default=True,
+              help="Split sections longer than this many characters (Markdown only).")
+@click.option("--bilingual", is_flag=True, default=False,
+              help="Generate a bilingual side-by-side PDF instead of Markdown.")
+@click.option("--max-pages", type=int, default=None,
+              help="Maximum pages for bilingual PDF (default: all pages).")
+def translate(
+    pdf_path: Path | None,
+    arxiv_id: str | None,
+    force: bool,
+    jobs: int,
+    max_section_chars: int,
+    bilingual: bool,
+    max_pages: int | None,
+):
+    """Translate a paper into Chinese Markdown or generate a bilingual PDF."""
+    if not pdf_path and not arxiv_id:
+        console.print("[red]Error:[/] Provide --pdf or --arxiv.")
+        sys.exit(1)
+    if jobs < 1:
+        console.print("[red]Error:[/] --jobs must be at least 1.")
+        sys.exit(1)
+
+    _ensure_api_key()
+
+    from research_helper.readers import arxiv_reader, pdf_reader
+    from research_helper.reports import translator
+    import json
+
+    with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
+        if arxiv_id:
+            task = prog.add_task("Fetching metadata from Arxiv…")
+            meta = arxiv_reader.fetch_meta(arxiv_id)
+            prog.update(task, description=f"[green]Fetched:[/] {meta.title[:60]}")
+            paper_dir = _paper_dir(meta.title)
+
+            cached_pdf = paper_dir / f"{re.sub(r'[^\\w\\-]', '_', meta.arxiv_id)}.pdf"
+            if not cached_pdf.exists() or force:
+                prog.update(task, description="Downloading PDF…")
+                pdf_path = arxiv_reader.download_pdf(meta, paper_dir)
+            else:
+                pdf_path = cached_pdf
+            prog.update(task, description="[green]PDF ready[/]")
+        else:
+            meta = _meta_from_pdf(pdf_path)
+            paper_dir = _paper_dir(pdf_path.stem)
+
+        paper_dir.mkdir(parents=True, exist_ok=True)
+        (paper_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "arxiv_id": meta.arxiv_id,
+                    "title": meta.title,
+                    "authors": meta.authors,
+                    "published": meta.published,
+                    "abstract": meta.abstract,
+                    "categories": meta.categories,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        if bilingual:
+            from research_helper.reports import pdf_translator
+
+            task2 = prog.add_task("Generating bilingual PDF…")
+            translation_path = pdf_translator.generate(
+                pdf_path,
+                paper_dir,
+                meta,
+                force=force,
+                max_pages=max_pages,
+            )
+            prog.update(task2, description=f"[green]Bilingual PDF saved →[/] {translation_path}")
+            label = f"translate-pdf:{meta.title[:50]}"
+        else:
+            task2 = prog.add_task("Extracting text from PDF…")
+            full_text = pdf_reader.extract_text(pdf_path)
+            sections = translator.split_sections(full_text, max_section_chars=max_section_chars)
+            prog.update(
+                task2,
+                description=f"[green]Extracted[/] {len(full_text):,} chars, {len(sections)} sections",
+            )
+
+            task3 = prog.add_task("Translating sections with LLM…")
+            translation_path = translator.generate(
+                paper_dir,
+                meta,
+                full_text,
+                force=force,
+                jobs=jobs,
+                max_section_chars=max_section_chars,
+            )
+            prog.update(task3, description=f"[green]Translation saved →[/] {translation_path}")
+            label = f"translate:{meta.title[:50]}"
+
+    from research_helper.utils import cost_tracker
+    cost_tracker.flush_to_log(label)
+    s = cost_tracker.session_summary()
+
+    fmt = "Bilingual PDF" if bilingual else "Translation"
+    console.rule()
+    console.print(f"[bold green]Done![/] {fmt}: [cyan]{translation_path}[/]")
+    console.print(f"Directory: [cyan]{paper_dir}[/]")
+    console.print(
+        f"[dim]本次费用：[/][yellow]${s['cost_usd']:.4f}[/]"
+        f"[dim]  (in {s['input_tokens']:,} / out {s['output_tokens']:,} tokens,"
         f" {s['calls']} calls)[/]"
     )
 

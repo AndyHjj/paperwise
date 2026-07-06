@@ -1,16 +1,12 @@
 from __future__ import annotations
 from research_helper import config
 
-_BASE_URLS = {
-    "deepseek": "https://api.deepseek.com",
-    "qwen":     "https://dashscope.aliyuncs.com/compatible-mode/v1",
-}
-
 _DEFAULT_MODELS = {
     "anthropic": "claude-sonnet-4-6",
     "openai":    "gpt-4o",
     "deepseek":  "deepseek-chat",
     "qwen":      "qwen-plus",
+    "mimo":      "mimo-v2.5-pro",
 }
 
 
@@ -20,12 +16,12 @@ def complete(system: str, user: str, max_tokens: int = 4096) -> str:
 
     if provider == "anthropic":
         return _anthropic(system, user, model, max_tokens)
-    elif provider in ("openai", "deepseek", "qwen"):
+    elif provider in ("openai", "deepseek", "qwen", "mimo"):
         return _openai_compat(system, user, model, max_tokens, provider)
     else:
         raise ValueError(
             f"Unknown LLM_PROVIDER: {provider!r}. "
-            "Choose from: anthropic, openai, deepseek, qwen"
+            "Choose from: anthropic, openai, deepseek, qwen, mimo"
         )
 
 
@@ -49,7 +45,7 @@ def _openai_compat(system: str, user: str, model: str, max_tokens: int, provider
     from research_helper.utils import cost_tracker
 
     api_key = _api_key(provider)
-    base_url = _BASE_URLS.get(provider)
+    base_url = _base_url(provider)
 
     client = OpenAI(api_key=api_key, base_url=base_url)
     resp = client.chat.completions.create(
@@ -70,6 +66,7 @@ def _api_key(provider: str) -> str:
         "openai":   config.OPENAI_API_KEY,
         "deepseek": config.DEEPSEEK_API_KEY,
         "qwen":     config.QWEN_API_KEY,
+        "mimo":     config.MIMO_API_KEY,
     }
     key = keys.get(provider, "")
     if not key:
@@ -77,3 +74,13 @@ def _api_key(provider: str) -> str:
             f"{provider.upper()}_API_KEY is not set. Add it to .env or environment."
         )
     return key
+
+
+def _base_url(provider: str) -> str | None:
+    urls = {
+        "openai":   config.OPENAI_BASE_URL or None,
+        "deepseek": config.DEEPSEEK_BASE_URL,
+        "qwen":     config.QWEN_BASE_URL,
+        "mimo":     config.MIMO_BASE_URL,
+    }
+    return urls.get(provider)
