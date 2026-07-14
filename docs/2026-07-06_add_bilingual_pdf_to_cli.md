@@ -19,7 +19,7 @@
 | 命令装饰器 | 新增 `--bilingual` 和 `--max-pages` 两个 `@click.option` |
 | `translate()` 函数签名 | 新增 `bilingual: bool` 和 `max_pages: int \| None` 参数 |
 | 函数 docstring | 更新为 "Translate a paper into Chinese Markdown or generate a bilingual PDF." |
-| 函数体 `with Progress` 内 | 新增 `if bilingual:` 分支，调用 `pdf_translator.generate()` 生成双语 PDF；原有逻辑移至 `else` 分支 |
+| 函数体 `with Progress` 内 | 新增 `if bilingual:` 分支，调用 `layout_pdf.generate()` 生成布局保真的双语 PDF；原有逻辑移至 `else` 分支 |
 | 输出信息 | 根据 `bilingual` 显示 "Bilingual PDF" 或 "Translation" |
 | `flush_to_log` 标签 | 双语 PDF 使用 `translate-pdf:` 前缀，Markdown 翻译使用 `translate:` 前缀 |
 | `--jobs` 和 `--max-section-chars` 的 help 文本 | 追加 `(Markdown only)` 说明 |
@@ -39,3 +39,6 @@ rh translate --arxiv 2401.12345 --bilingual --max-pages 10
 # 本地 PDF 生成双语 PDF
 rh translate --pdf paper.pdf --bilingual
 ```
+
+布局保真后端的安装、质量检查和已知限制见
+[`layout-pdf-backend.md`](layout-pdf-backend.md)。

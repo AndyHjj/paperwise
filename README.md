@@ -12,6 +12,7 @@
 |------|------|
 | `rh read --arxiv 2310.01234` | 精读单篇论文，生成 6 节结构化报告（中文） |
 | `rh read --pdf paper.pdf` | 同上，使用本地 PDF |
+| `rh translate --pdf paper.pdf --bilingual` | 生成保留原排版的中英双栏 PDF（需可选 BabelDOC 后端） |
 | `rh survey --query "KV Cache"` | 检索 Arxiv，生成领域综述 |
 | `rh graph` | 从已读论文构建知识图谱（交互式 HTML + JSON） |
 | `rh kb search "attention"` | 在知识库中语义检索 |
@@ -63,6 +64,13 @@ cp .env.example .env
 rh read --arxiv 1706.03762   # Attention Is All You Need
 ```
 
+生成中英双栏 PDF 前，请按 [布局保真 PDF 后端说明](docs/layout-pdf-backend.md)
+安装独立的 BabelDOC 0.6.3 可执行程序，然后运行：
+
+```bash
+rh translate --pdf paper.pdf --bilingual
+```
+
 ---
 
 ## 配置
@@ -101,6 +109,7 @@ research_helper/
 │   ├── arxiv_reader.py # Arxiv 元数据 + PDF 下载
 │   └── pdf_reader.py   # PDF 文本提取（pymupdf + pdfplumber）
 ├── reports/
+│   ├── layout_pdf/     # 布局保真的中英双栏 PDF 后端
 │   ├── single_paper.py # 精读报告生成（6 节 × 独立调用）
 │   └── survey.py       # 领域综述生成
 ├── kb/

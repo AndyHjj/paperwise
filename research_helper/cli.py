@@ -1,4 +1,4 @@
-﻿"""
+"""
 research-helper CLI
 
 Commands:
@@ -173,7 +173,7 @@ def read(pdf_path: Path | None, arxiv_id: str | None, force: bool, no_kb: bool):
               help="Split sections longer than this many characters (Markdown only).")
 @click.option("--bilingual", is_flag=True, default=False,
               help="Generate a bilingual side-by-side PDF instead of Markdown.")
-@click.option("--max-pages", type=int, default=None,
+@click.option("--max-pages", type=click.IntRange(min=1), default=None,
               help="Maximum pages for bilingual PDF (default: all pages).")
 def translate(
     pdf_path: Path | None,
@@ -185,6 +185,7 @@ def translate(
     max_pages: int | None,
 ):
     """Translate a paper into Chinese Markdown or generate a bilingual PDF."""
+    quality_warnings: list[str] = []
     if not pdf_path and not arxiv_id:
         console.print("[red]Error:[/] Provide --pdf or --arxiv.")
         sys.exit(1)
@@ -234,15 +235,16 @@ def translate(
         )
 
         if bilingual:
-            from research_helper.reports import pdf_translator
+            from research_helper.reports import layout_pdf
 
             task2 = prog.add_task("Generating bilingual PDF…")
-            translation_path = pdf_translator.generate(
+            translation_path = layout_pdf.generate(
                 pdf_path,
                 paper_dir,
                 meta,
                 force=force,
                 max_pages=max_pages,
+                warning_sink=quality_warnings.extend,
             )
             prog.update(task2, description=f"[green]Bilingual PDF saved →[/] {translation_path}")
             label = f"translate-pdf:{meta.title[:50]}"
@@ -266,6 +268,11 @@ def translate(
             )
             prog.update(task3, description=f"[green]Translation saved →[/] {translation_path}")
             label = f"translate:{meta.title[:50]}"
+
+    if quality_warnings:
+        console.print("[bold yellow]PDF 已发布，但检测到以下质量问题：[/]")
+        for warning in quality_warnings:
+            console.print(f"[yellow]{warning}[/]")
 
     from research_helper.utils import cost_tracker
     cost_tracker.flush_to_log(label)
