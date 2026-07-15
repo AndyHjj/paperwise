@@ -18,6 +18,8 @@
 | `rh kb search "attention"` | 在知识库中语义检索 |
 | `rh cost` | 查看 API 费用记录 |
 
+完整参数、输出文件和常用工作流见 [CLI 功能与命令手册](docs/cli-reference.md)。
+
 ### 精读报告结构
 
 每篇报告由 **6 次独立 LLM 调用**生成，每节有最低字数要求：
