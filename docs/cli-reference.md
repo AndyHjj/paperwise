@@ -100,9 +100,8 @@ paper_paperwise_bilingual_layout.pdf
 paper_paperwise_bilingual_layout_pages_1-5.pdf
 ```
 
-当前 CLI 的 `--bilingual` 路径调用
-`research_helper.reports.layout_pdf`。旧的 `pdf_translator.py` 和本地未跟踪的
-`pdf_translator_v2.py` 均不是该命令的执行入口。
+当前 CLI 的 `--bilingual` 路径只调用
+`research_helper.reports.layout_pdf`，旧版 PDF translator 已移除。
 
 双栏 PDF 需要单独安装 BabelDOC 0.6.3，且需选择 OpenAI、DeepSeek、Qwen
 或 MiMo 等 OpenAI-compatible 提供商。完整安装、质量检查与已知限制见
