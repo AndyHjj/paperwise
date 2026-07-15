@@ -125,3 +125,50 @@ def test_sparse_local_metadata_does_not_replace_rich_existing_metadata(
     assert metadata["published"] == "2025-02-20"
     assert metadata["abstract"] == "A complete abstract."
     assert metadata["categories"] == ["cs.CL"]
+
+
+def test_bom_metadata_is_used_for_resolution_and_safe_merge(tmp_path: Path) -> None:
+    title = "From RAG to Memory: Non-Parametric Continual Learning"
+    canonical = tmp_path / "2502_14802"
+    canonical.mkdir()
+    (canonical / "meta.json").write_text(
+        json.dumps(
+            {
+                "arxiv_id": "local",
+                "title": title,
+                "authors": ["Ada Lovelace"],
+                "abstract": "rich metadata",
+            }
+        ),
+        encoding="utf-8-sig",
+    )
+    duplicate = tmp_path / "old-title"
+    duplicate.mkdir()
+    (duplicate / "meta.json").write_text(
+        json.dumps({"arxiv_id": "2502.14802v2", "title": title}),
+        encoding="utf-8-sig",
+    )
+
+    resolution = resolve_paper_dir(
+        tmp_path,
+        arxiv_id="2502.14802v4",
+        title=title,
+    )
+    write_paper_metadata(
+        resolution.path,
+        {
+            "arxiv_id": "2502.14802v4",
+            "title": "downloaded-file",
+            "authors": ["Unknown"],
+            "abstract": "",
+        },
+    )
+
+    metadata = json.loads(
+        (canonical / "meta.json").read_text(encoding="utf-8-sig")
+    )
+    assert resolution.path == canonical
+    assert resolution.duplicate_dirs == (duplicate,)
+    assert metadata["title"] == title
+    assert metadata["authors"] == ["Ada Lovelace"]
+    assert metadata["abstract"] == "rich metadata"

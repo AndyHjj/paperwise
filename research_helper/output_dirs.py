@@ -155,7 +155,7 @@ def _metadata_has_arxiv_id(directory: Path, canonical_id: str | None) -> bool:
 def _read_metadata(directory: Path) -> dict:
     path = directory / "meta.json"
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return {}
     return value if isinstance(value, dict) else {}
