@@ -22,6 +22,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from research_helper import config
+from research_helper.output_dirs import (
+    detect_arxiv_id,
+    resolve_paper_dir,
+    write_paper_metadata,
+)
 
 console = Console()
 
@@ -33,6 +38,35 @@ console = Console()
 def _paper_dir(name: str) -> Path:
     safe = re.sub(r"[^\w\-]", "_", name)[:80]
     return config.OUTPUTS_DIR / safe
+
+
+def _resolved_paper_dir(meta) -> Path:
+    resolution = resolve_paper_dir(
+        config.OUTPUTS_DIR,
+        arxiv_id=meta.arxiv_id,
+        title=meta.title,
+    )
+    if resolution.duplicate_dirs:
+        duplicates = ", ".join(path.name for path in resolution.duplicate_dirs)
+        console.print(
+            "[yellow]检测到同一论文的旧输出目录：[/]"
+            f"{duplicates}；本次统一使用 [cyan]{resolution.path.name}[/]。"
+        )
+    return resolution.path
+
+
+def _save_paper_metadata(paper_dir: Path, meta) -> Path:
+    return write_paper_metadata(
+        paper_dir,
+        {
+            "arxiv_id": meta.arxiv_id,
+            "title": meta.title,
+            "authors": meta.authors,
+            "published": meta.published,
+            "abstract": meta.abstract,
+            "categories": meta.categories,
+        },
+    )
 
 
 def _ensure_api_key() -> None:
@@ -86,7 +120,6 @@ def read(pdf_path: Path | None, arxiv_id: str | None, force: bool, no_kb: bool):
 
     from research_helper.readers import arxiv_reader, pdf_reader
     from research_helper.reports import single_paper
-    import json
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
 
@@ -95,7 +128,7 @@ def read(pdf_path: Path | None, arxiv_id: str | None, force: bool, no_kb: bool):
             task = prog.add_task("Fetching metadata from Arxiv…")
             meta = arxiv_reader.fetch_meta(arxiv_id)
             prog.update(task, description=f"[green]Fetched:[/] {meta.title[:60]}")
-            paper_dir = _paper_dir(meta.title)
+            paper_dir = _resolved_paper_dir(meta)
 
             cached_pdf = paper_dir / f"{re.sub(r'[^\\w\\-]', '_', meta.arxiv_id)}.pdf"
             if not cached_pdf.exists() or force:
@@ -106,25 +139,10 @@ def read(pdf_path: Path | None, arxiv_id: str | None, force: bool, no_kb: bool):
             prog.update(task, description="[green]PDF ready[/]")
         else:
             meta = _meta_from_pdf(pdf_path)
-            paper_dir = _paper_dir(pdf_path.stem)
+            paper_dir = _resolved_paper_dir(meta)
 
         # Save meta.json
-        paper_dir.mkdir(parents=True, exist_ok=True)
-        (paper_dir / "meta.json").write_text(
-            json.dumps(
-                {
-                    "arxiv_id": meta.arxiv_id,
-                    "title": meta.title,
-                    "authors": meta.authors,
-                    "published": meta.published,
-                    "abstract": meta.abstract,
-                    "categories": meta.categories,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        _save_paper_metadata(paper_dir, meta)
 
         # --- Extract text ---
         task2 = prog.add_task("Extracting text from PDF…")
@@ -197,14 +215,13 @@ def translate(
 
     from research_helper.readers import arxiv_reader, pdf_reader
     from research_helper.reports import translator
-    import json
 
     with Progress(SpinnerColumn(), TextColumn("{task.description}"), console=console) as prog:
         if arxiv_id:
             task = prog.add_task("Fetching metadata from Arxiv…")
             meta = arxiv_reader.fetch_meta(arxiv_id)
             prog.update(task, description=f"[green]Fetched:[/] {meta.title[:60]}")
-            paper_dir = _paper_dir(meta.title)
+            paper_dir = _resolved_paper_dir(meta)
 
             cached_pdf = paper_dir / f"{re.sub(r'[^\\w\\-]', '_', meta.arxiv_id)}.pdf"
             if not cached_pdf.exists() or force:
@@ -215,24 +232,9 @@ def translate(
             prog.update(task, description="[green]PDF ready[/]")
         else:
             meta = _meta_from_pdf(pdf_path)
-            paper_dir = _paper_dir(pdf_path.stem)
+            paper_dir = _resolved_paper_dir(meta)
 
-        paper_dir.mkdir(parents=True, exist_ok=True)
-        (paper_dir / "meta.json").write_text(
-            json.dumps(
-                {
-                    "arxiv_id": meta.arxiv_id,
-                    "title": meta.title,
-                    "authors": meta.authors,
-                    "published": meta.published,
-                    "abstract": meta.abstract,
-                    "categories": meta.categories,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
-        )
+        _save_paper_metadata(paper_dir, meta)
 
         if bilingual:
             from research_helper.reports import layout_pdf
@@ -291,20 +293,31 @@ def translate(
 
 def _meta_from_pdf(pdf_path: Path):
     from research_helper.readers.arxiv_reader import PaperMeta
+    detected_arxiv_id: str | None = detect_arxiv_id(pdf_path.name)
     try:
         import fitz
         doc = fitz.open(str(pdf_path))
-        info = doc.metadata
-        doc.close()
-        title = info.get("title") or pdf_path.stem
-        author = info.get("author") or "Unknown"
-        authors = [a.strip() for a in author.split(";") if a.strip()] or ["Unknown"]
+        try:
+            info = doc.metadata
+            title = info.get("title") or pdf_path.stem
+            author = info.get("author") or "Unknown"
+            page_text = "\n".join(
+                doc[index].get_text() for index in range(min(2, doc.page_count))
+            )
+            detected_arxiv_id = detected_arxiv_id or detect_arxiv_id(
+                title,
+                info.get("subject"),
+                page_text,
+            )
+            authors = [a.strip() for a in author.split(";") if a.strip()] or ["Unknown"]
+        finally:
+            doc.close()
     except Exception:
         title = pdf_path.stem
         authors = ["Unknown"]
 
     return PaperMeta(
-        arxiv_id="local",
+        arxiv_id=detected_arxiv_id or "local",
         title=title,
         authors=authors,
         abstract="",
