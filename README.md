@@ -93,6 +93,7 @@ rh translate --pdf paper.pdf --bilingual
 | Qwen | `qwen` | `qwen-plus` | [dashscope.aliyuncs.com](https://dashscope.aliyuncs.com) |
 | OpenAI | `openai` | `gpt-4o` | [platform.openai.com](https://platform.openai.com) |
 | Anthropic | `anthropic` | `claude-sonnet-4-6` | [console.anthropic.com](https://console.anthropic.com) |
+| MiMo | `mimo` | `mimo-v2.5-pro` | OpenAI-compatible API |
 
 ### 向量嵌入（知识库）
 

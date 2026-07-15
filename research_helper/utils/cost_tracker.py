@@ -55,16 +55,6 @@ def session_summary() -> dict:
         }
 
 
-def reset_session() -> None:
-    """Reset in-process counters for long-running service workers."""
-    with _lock:
-        _session.input_tokens = 0
-        _session.output_tokens = 0
-        _session.embed_tokens = 0
-        _session.cost_usd = 0.0
-        _session.calls = 0
-
-
 def flush_to_log(label: str) -> None:
     """Append current session totals to the persistent JSONL log."""
     summary = session_summary()
