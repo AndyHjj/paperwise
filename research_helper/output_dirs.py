@@ -50,25 +50,20 @@ def resolve_paper_dir(
     title_key = _title_key(title)
     candidates = _matching_directories(outputs_dir, canonical_id, title_key)
 
-    canonical_path = (
-        outputs_dir / canonical_id.replace(".", "_")
-        if canonical_id is not None
-        else None
+    preferred_path = preferred_paper_path(
+        outputs_dir,
+        arxiv_id=canonical_id,
+        title=title,
     )
-    if canonical_path is not None and canonical_path in candidates:
-        selected = canonical_path
+    if preferred_path in candidates:
+        selected = preferred_path
     elif candidates:
         selected = min(
             candidates,
-            key=lambda path: (
-                not _metadata_has_arxiv_id(path, canonical_id),
-                path.name.casefold(),
-            ),
+            key=lambda path: _directory_priority(path, canonical_id),
         )
-    elif canonical_path is not None:
-        selected = canonical_path
     else:
-        selected = outputs_dir / _safe_title(title)
+        selected = preferred_path
 
     identity = (
         f"arxiv:{canonical_id}"
@@ -81,6 +76,21 @@ def resolve_paper_dir(
         if path != selected
     )
     return PaperDirectoryResolution(selected, identity, duplicates)
+
+
+def preferred_paper_path(
+    outputs_dir: Path,
+    *,
+    arxiv_id: str | None,
+    title: str,
+) -> Path:
+    """Return the readable canonical path used for new or migrated papers."""
+    canonical_id = canonical_arxiv_id(arxiv_id)
+    if canonical_id is None:
+        return Path(outputs_dir) / _safe_title(title, limit=96)
+    prefix = canonical_id.replace(".", "_")
+    title_part = _safe_title(title, limit=max(20, 96 - len(prefix) - 1))
+    return Path(outputs_dir) / f"{prefix}_{title_part}"
 
 
 def write_paper_metadata(directory: Path, incoming: dict) -> Path:
@@ -145,11 +155,19 @@ def _matching_directories(
     return tuple(matches)
 
 
-def _metadata_has_arxiv_id(directory: Path, canonical_id: str | None) -> bool:
-    if canonical_id is None:
-        return False
+def _directory_priority(directory: Path, canonical_id: str | None) -> tuple:
     metadata = _read_metadata(directory)
-    return canonical_arxiv_id(str(metadata.get("arxiv_id", ""))) == canonical_id
+    richness = 0
+    richness += 8 * bool(str(metadata.get("abstract", "")).strip())
+    richness += 4 * (not _authors_are_unknown(metadata.get("authors")))
+    richness += 2 * bool(str(metadata.get("published", "")).strip())
+    richness += bool(metadata.get("categories"))
+    richness += bool(str(metadata.get("title", "")).strip())
+    has_matching_id = (
+        canonical_id is not None
+        and canonical_arxiv_id(str(metadata.get("arxiv_id", ""))) == canonical_id
+    )
+    return (-richness, not has_matching_id, directory.name.casefold())
 
 
 def _read_metadata(directory: Path) -> dict:
@@ -184,8 +202,13 @@ def _title_key(value: str) -> str:
     return key if len(key) >= 12 else ""
 
 
-def _safe_title(title: str) -> str:
+def _safe_title(title: str, *, limit: int = 80) -> str:
     normalized = unicodedata.normalize("NFKC", title).strip()
     safe = re.sub(r"[^\w-]+", "_", normalized, flags=re.UNICODE)
     safe = re.sub(r"_+", "_", safe).strip("._")
-    return safe[:80] or "paper"
+    if len(safe) > limit:
+        shortened = safe[:limit].rstrip("_-")
+        if "_" in shortened:
+            shortened = shortened.rsplit("_", 1)[0]
+        safe = shortened or safe[:limit]
+    return safe or "paper"

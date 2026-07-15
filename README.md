@@ -71,10 +71,11 @@ rh read --arxiv 1706.03762   # Attention Is All You Need
 rh translate --pdf paper.pdf --bilingual
 ```
 
-单篇论文的输出目录优先使用去除版本号的 Arxiv ID（例如
-`outputs/2502_14802`）。本地 PDF 也会从文件名、元数据和前两页识别
-Arxiv ID；无法识别时才按规范化标题归档。发现同一论文已有多个旧目录时，
-Paperwise 会固定复用一个目录并在 CLI 中提示，但不会自动移动或删除旧成果。
+单篇论文的新输出目录使用“去除版本号的 Arxiv ID + 精简标题”（例如
+`outputs/2502_14802_From_RAG_to_Memory`）。本地 PDF 也会从文件名、元数据
+和前两页识别 Arxiv ID；无法识别时才按规范化标题归档。发现同一论文已有
+多个旧目录时，Paperwise 会固定复用其中元数据最完整的目录并在 CLI 中提示，
+但不会在普通生成流程中自动移动或删除旧成果。
 
 ---
 

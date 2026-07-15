@@ -176,6 +176,9 @@ def _render_dual_pdf(
             if overflow:
                 global_overflow.extend((page_index, text) for text in overflow)
 
+        if global_overflow:
+            _draw_overflow_pages(output, source[0].rect, global_overflow)
+
         output.set_metadata(
             {
                 **source.metadata,
