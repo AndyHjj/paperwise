@@ -12,10 +12,13 @@
 |------|------|
 | `rh read --arxiv 2310.01234` | 精读单篇论文，生成 6 节结构化报告（中文） |
 | `rh read --pdf paper.pdf` | 同上，使用本地 PDF |
+| `rh translate --pdf paper.pdf --bilingual` | 生成保留原排版的中英双栏 PDF（需可选 BabelDOC 后端） |
 | `rh survey --query "KV Cache"` | 检索 Arxiv，生成领域综述 |
 | `rh graph` | 从已读论文构建知识图谱（交互式 HTML + JSON） |
 | `rh kb search "attention"` | 在知识库中语义检索 |
 | `rh cost` | 查看 API 费用记录 |
+
+完整参数、输出文件和常用工作流见 [CLI 功能与命令手册](docs/cli-reference.md)。
 
 ### 精读报告结构
 
@@ -63,6 +66,19 @@ cp .env.example .env
 rh read --arxiv 1706.03762   # Attention Is All You Need
 ```
 
+生成中英双栏 PDF 前，请按 [布局保真 PDF 后端说明](docs/layout-pdf-backend.md)
+安装独立的 BabelDOC 0.6.3 可执行程序，然后运行：
+
+```bash
+rh translate --pdf paper.pdf --bilingual
+```
+
+单篇论文的新输出目录使用“去除版本号的 Arxiv ID + 精简标题”（例如
+`outputs/2502_14802_From_RAG_to_Memory`）。本地 PDF 也会从文件名、元数据
+和前两页识别 Arxiv ID；无法识别时才按规范化标题归档。发现同一论文已有
+多个旧目录时，Paperwise 会固定复用其中元数据最完整的目录并在 CLI 中提示，
+但不会在普通生成流程中自动移动或删除旧成果。
+
 ---
 
 ## 配置
@@ -77,6 +93,7 @@ rh read --arxiv 1706.03762   # Attention Is All You Need
 | Qwen | `qwen` | `qwen-plus` | [dashscope.aliyuncs.com](https://dashscope.aliyuncs.com) |
 | OpenAI | `openai` | `gpt-4o` | [platform.openai.com](https://platform.openai.com) |
 | Anthropic | `anthropic` | `claude-sonnet-4-6` | [console.anthropic.com](https://console.anthropic.com) |
+| MiMo | `mimo` | `mimo-v2.5-pro` | OpenAI-compatible API |
 
 ### 向量嵌入（知识库）
 
@@ -101,6 +118,7 @@ research_helper/
 │   ├── arxiv_reader.py # Arxiv 元数据 + PDF 下载
 │   └── pdf_reader.py   # PDF 文本提取（pymupdf + pdfplumber）
 ├── reports/
+│   ├── layout_pdf/     # 布局保真的中英双栏 PDF 后端
 │   ├── single_paper.py # 精读报告生成（6 节 × 独立调用）
 │   └── survey.py       # 领域综述生成
 ├── kb/

@@ -19,6 +19,7 @@ env/
 # Environment & secrets — NEVER commit
 .env
 *.env.local
+.paperwise-runtime/
 
 # Project outputs (generated reports, PDFs, knowledge base)
 outputs/
@@ -31,6 +32,14 @@ outputs/
 
 # Claude Code
 .claude/
+
+# Zotero plugin & debug logs (local only)
+zotero-paperwise/
+zotero-*.txt
+reference-plugins/
+
+# Backup files
+*.bak
 
 # OS
 .DS_Store

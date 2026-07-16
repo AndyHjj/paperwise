@@ -7,7 +7,7 @@ load_dotenv()
 OUTPUTS_DIR = Path("outputs")
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
-# LLM_PROVIDER: anthropic | openai | deepseek | qwen
+# LLM_PROVIDER: anthropic | openai | deepseek | qwen | mimo
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")
 LLM_MODEL    = os.getenv("LLM_MODEL", "claude-sonnet-4-6")
 
@@ -15,6 +15,12 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
 DEEPSEEK_API_KEY  = os.getenv("DEEPSEEK_API_KEY", "")
 QWEN_API_KEY      = os.getenv("QWEN_API_KEY", "")   # DashScope key
+MIMO_API_KEY      = os.getenv("MIMO_API_KEY", "")
+
+OPENAI_BASE_URL   = os.getenv("OPENAI_BASE_URL", "")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+QWEN_BASE_URL     = os.getenv("QWEN_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+MIMO_BASE_URL     = os.getenv("MIMO_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1")
 
 # ── Embedding ─────────────────────────────────────────────────────────────────
 # EMBEDDING_PROVIDER: openai | qwen | local
@@ -59,6 +65,7 @@ PRICES: dict[str, dict] = {
     "gpt-4o-mini":         {"input": 0.15,  "output": 0.60},
     # Anthropic
     "claude-sonnet-4-6":   {"input": 3.00,  "output": 15.0},
+    "mimo-v2.5-pro":       {"input": 0,     "output": 0},
     # Embedding（只有 input）
     "text-embedding-v3":       {"input": 0.069, "output": 0},  # Qwen，¥0.5/M → $0.069
     "text-embedding-3-small":  {"input": 0.02,  "output": 0},
